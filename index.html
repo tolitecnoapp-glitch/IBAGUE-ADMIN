@@ -4,6 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin · Videos del banner</title>
+<meta name="description" content="Administra los videos del banner de la app Ibagué: agrega, elimina y ordena los videos destacados.">
+<meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Admin Ibagué">
+<meta name="application-name" content="Admin · Videos del banner">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_CO">
+<meta property="og:site_name" content="Admin · Videos del banner">
+<meta property="og:title" content="Admin · Videos del banner">
+<meta property="og:description" content="Administra los videos del banner de la app Ibagué: agrega, elimina y ordena los videos destacados.">
+<meta property="og:url" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/">
+<meta property="og:image" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/icon-512.png">
+<meta property="og:image:secure_url" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/icon-512.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Admin · Videos del banner">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Admin · Videos del banner">
+<meta name="twitter:description" content="Administra los videos del banner de la app Ibagué: agrega, elimina y ordena los videos destacados.">
+<meta name="twitter:image" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/icon-512.png">
+<meta name="twitter:image:alt" content="Admin · Videos del banner">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="icon" href="icon-512.png" type="image/png" sizes="512x512">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f3f1ec;color:#101a30;line-height:1.5}
@@ -38,6 +66,23 @@
   .badge.off{background:#fdecea;color:#b71c1c}
   .empty{text-align:center;color:#586273;font-size:13px;padding:18px}
   .hint{font-size:12px;color:#586273;margin-top:8px}
+  .preview{display:flex;flex-direction:column;gap:6px;flex:none;width:150px;min-width:0}
+  .preview .pos{width:100%}
+  .preview .pos input{flex:1;width:auto;min-width:0}
+  .preview .pos button{flex:none;padding:6px 8px;font-size:11px;border-radius:9px}
+  .install-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(9,14,26,.62);opacity:0;transition:opacity .25s ease}
+  .install-overlay.is-open{opacity:1}
+  .install-card{width:100%;max-width:340px;background:#fff;border-radius:24px;box-shadow:0 24px 48px -18px rgba(0,0,0,.5);padding:22px 20px 18px;text-align:center;transform:translateY(14px) scale(.96);transition:transform .3s cubic-bezier(.22,1,.36,1)}
+  .install-overlay.is-open .install-card{transform:none}
+  .install-card__icon{width:84px;height:84px;object-fit:contain;margin:0 auto 10px;border-radius:20px}
+  .install-card__title{margin:0 0 6px;font-size:18px;font-weight:700;line-height:1.3}
+  .install-card__text{margin:0 0 16px;font-size:13.5px;line-height:1.5;color:#586273}
+  .install-card__help{margin:0 0 14px;padding:10px 12px;background:#f3f1ec;border-radius:14px;font-size:12.5px;line-height:1.5;text-align:left}
+  .install-card__actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .install-btn{padding:12px 10px;border:0;border-radius:14px;font-size:13px;font-weight:700;letter-spacing:.04em;cursor:pointer}
+  .install-btn:active{transform:scale(.96)}
+  .install-btn--primary{background:#F2BA17;color:#101a30;box-shadow:0 6px 0 #d8d4c8,0 14px 18px -10px rgba(150,105,0,.6)}
+  .install-btn--ghost{background:#f3f1ec;color:#101a30;border:1px solid rgba(16,26,48,.08)}
 </style>
 </head>
 <body>
@@ -80,6 +125,19 @@
     <p class="msg" id="msg2"></p>
   </section>
 </main>
+
+<div class="install-overlay" id="installOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="installTitle">
+  <div class="install-card">
+    <img class="install-card__icon" src="icon-192.png" alt="Admin · Videos del banner" decoding="async">
+    <h2 class="install-card__title" id="installTitle">Instala la app</h2>
+    <p class="install-card__text">Administra los videos del banner desde tu pantalla de inicio, sin abrir el navegador.</p>
+    <p class="install-card__help" id="installHelp" hidden></p>
+    <div class="install-card__actions">
+      <button class="install-btn install-btn--primary" id="installYes" type="button">INSTALAR</button>
+      <button class="install-btn install-btn--ghost" id="installNo" type="button">AHORA NO</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const SUPABASE_URL = 'https://gwrzgesanxvlxlfevqsc.supabase.co/rest/v1/';
@@ -126,6 +184,9 @@ function pintar(datos) {
   datos.forEach(v => {
     const div = document.createElement('div');
     div.className = 'item';
+
+    const preview = document.createElement('div');
+    preview.className = 'preview';
     const video = document.createElement('video');
     video.src = v.video_url;
     video.muted = true;
@@ -134,6 +195,20 @@ function pintar(datos) {
     video.preload = 'metadata';
     if (v.poster_url) video.poster = v.poster_url;
     video.addEventListener('click', () => { video.paused ? video.play().catch(()=>{}) : video.pause(); });
+    preview.appendChild(video);
+
+    const pos = document.createElement('div');
+    pos.className = 'pos';
+    const lab = document.createElement('label');
+    lab.textContent = 'Posición';
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.min = '0'; inp.value = (v.orden ?? 0);
+    inp.setAttribute('aria-label', 'Posición');
+    const bGuardar = document.createElement('button');
+    bGuardar.className = 'ghost small'; bGuardar.type = 'button'; bGuardar.textContent = 'Guardar';
+    bGuardar.addEventListener('click', () => guardarPosicion(v, inp.value));
+    pos.appendChild(lab); pos.appendChild(inp); pos.appendChild(bGuardar);
+    preview.appendChild(pos);
 
     const info = document.createElement('div');
     info.className = 'info';
@@ -141,7 +216,6 @@ function pintar(datos) {
     h.textContent = v.titulo || 'Sin título';
     const ops = document.createElement('div');
     ops.className = 'ops';
-
     const fila1 = document.createElement('div');
     fila1.className = 'ops-row';
     const bVis = document.createElement('button');
@@ -152,25 +226,9 @@ function pintar(datos) {
     bDel.className = 'danger small'; bDel.type = 'button'; bDel.textContent = 'Eliminar';
     bDel.addEventListener('click', () => eliminar(v));
     fila1.appendChild(bVis); fila1.appendChild(bDel);
-
-    const fila2 = document.createElement('div');
-    fila2.className = 'ops-row';
-    const pos = document.createElement('div');
-    pos.className = 'pos';
-    const lab = document.createElement('label');
-    lab.textContent = 'Posición';
-    const inp = document.createElement('input');
-    inp.type = 'number'; inp.min = '0'; inp.value = (v.orden ?? 0);
-    inp.setAttribute('aria-label', 'Posición');
-    pos.appendChild(lab); pos.appendChild(inp);
-    const bGuardar = document.createElement('button');
-    bGuardar.className = 'ghost small'; bGuardar.type = 'button'; bGuardar.textContent = 'Guardar';
-    bGuardar.addEventListener('click', () => guardarPosicion(v, inp.value));
-    fila2.appendChild(pos); fila2.appendChild(bGuardar);
-
-    ops.appendChild(fila1); ops.appendChild(fila2);
+    ops.appendChild(fila1);
     info.appendChild(h); info.appendChild(ops);
-    div.appendChild(video); div.appendChild(info);
+    div.appendChild(preview); div.appendChild(info);
     lista.appendChild(div);
   });
 }
@@ -269,6 +327,78 @@ async function guardarPosicion(v, valor) {
 
 $('btnAgregar').addEventListener('click', agregar);
 cargar();
+
+/* --- Popup de instalación (Android + iPhone) --- */
+const installOverlay = $('installOverlay'), installYes = $('installYes'),
+      installNo = $('installNo'), installHelp = $('installHelp');
+let deferredPrompt = null;
+
+const esInstalada = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true ||
+  localStorage.getItem('pwa-instalada-admin') === '1';
+
+const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function mostrarInstalacion() {
+  if (esInstalada()) return;
+  installOverlay.hidden = false;
+  void installOverlay.offsetWidth;
+  installOverlay.classList.add('is-open');
+  document.documentElement.style.overflow = 'hidden';
+  installYes.focus({ preventScroll: true });
+}
+
+function ocultarInstalacion() {
+  installOverlay.classList.remove('is-open');
+  setTimeout(() => {
+    installOverlay.hidden = true;
+    document.documentElement.style.overflow = '';
+  }, 260);
+}
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+window.addEventListener('appinstalled', () => {
+  try { localStorage.setItem('pwa-instalada-admin', '1'); } catch (err) {}
+  ocultarInstalacion();
+});
+
+installNo.addEventListener('click', ocultarInstalacion);
+
+installYes.addEventListener('click', async () => {
+  if (esIOS()) {
+    installHelp.hidden = false;
+    installHelp.textContent = 'En iPhone: toca el botón Compartir (el cuadrado con la flecha) y luego "Añadir a pantalla de inicio".';
+    return;
+  }
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    try {
+      const eleccion = await deferredPrompt.userChoice;
+      if (eleccion && eleccion.outcome === 'accepted') {
+        try { localStorage.setItem('pwa-instalada-admin', '1'); } catch (err) {}
+        ocultarInstalacion();
+      }
+    } catch (err) {}
+    deferredPrompt = null;
+    return;
+  }
+  installHelp.hidden = false;
+  installHelp.textContent = 'En tu navegador abre el menú (⋮) y elige "Instalar app" o "Añadir a pantalla de inicio".';
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+setTimeout(mostrarInstalacion, 900);
 </script>
 </body>
 </html>
