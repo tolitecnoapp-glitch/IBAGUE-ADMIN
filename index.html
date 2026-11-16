@@ -95,7 +95,6 @@
     <small>Gestión completa de la app, comercios y banners</small>
   </div>
   <div class="acts">
-    <a class="lnk" href="index.html">Ir a la app</a>
     <button class="btn-sm" id="btnRefrescar" type="button">Actualizar</button>
   </div>
 </header>
@@ -105,8 +104,8 @@
   <button class="tab" data-tab="usuarios" type="button">👥 Usuarios</button>
   <button class="tab" data-tab="comercios" type="button">🏪 Comercios</button>
   <button class="tab" data-tab="productos" type="button">🛍️ Productos</button>
-  <button class="tab" data-tab="banners" type="button">🎬 Banners del home</button>
-  <button class="tab" data-tab="legado" type="button">🎞️ Videos (panel anterior)</button>
+  <button class="tab" data-tab="banners" type="button">🎬 Banner Multiservicios</button>
+  <button class="tab" data-tab="legado" type="button">🎞️ Banner Ibague TQM</button>
 </nav>
 
 <main class="wrap">
@@ -643,7 +642,12 @@ function storageRef(url) {
 async function borrarArchivo(url) {
   const r = storageRef(url);
   if (!r) return;
-  try { await sb.storage.from(r.bucket).remove([r.path]); } catch (e) { console.warn('Storage:', e); }
+  try {
+    const { error } = await sb.storage.from(r.bucket).remove([r.path]);
+    if (error) toast('No se pudo borrar el archivo de Storage: ' + error.message, false);
+  } catch (e) {
+    toast('No se pudo borrar el archivo de Storage', false);
+  }
 }
 async function subirArchivo(bucket, file, prefix) {
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
@@ -752,22 +756,36 @@ function renderUsuarios() {
         <small>${esc(u.email || '')} ${u.phone ? '· ' + esc(u.phone) : ''}</small>
         <small>Comercios: ${n} · Alta: ${fecha(u.created_at)}</small>
       </div>
-      <select data-role="${u.id}" style="width:auto">
-        ${['comprador', 'vendedor', 'admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
-      </select>
+      <button class="btn-sm btn-y" data-act="edit-user" data-id="${u.id}" type="button">Editar</button>
       <button class="btn-sm btn-red" data-act="del-user" data-id="${u.id}" type="button">Eliminar</button>
     </div>`;
   }).join('') : '<p class="empty">No hay usuarios con ese criterio.</p>';
 }
 $$('qUsers').addEventListener('input', renderUsuarios);
-document.addEventListener('change', async e => {
-  const sel = e.target.closest('[data-role]');
-  if (!sel) return;
-  const { error } = await sb.from('profiles').update({ role: sel.value }).eq('id', sel.dataset.role);
-  if (error) return toast('No se pudo cambiar el rol: ' + error.message, false);
-  toast('Rol actualizado a ' + sel.value);
-  await cargarTodo();
-});
+function editarUsuario(id) {
+  const u = S.users.find(x => String(x.id) === String(id));
+  if (!u) return;
+  openModal(`
+    <h2>Editar usuario</h2>
+    <p class="hint" style="margin-top:0">${esc(u.email || '')}</p>
+    <form id="mForm">
+      <label>Nombre completo</label><input name="full_name" required value="${esc(u.full_name)}">
+      <label>Teléfono</label><input name="phone" value="${esc(u.phone)}">
+      <button class="btn-y" type="submit" id="mSave" style="width:100%;margin-top:16px">GUARDAR CAMBIOS</button>
+    </form>`);
+  $$('mForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, btn = $$('mSave');
+    btn.disabled = true;
+    const { error } = await sb.from('profiles')
+      .update({ full_name: f.elements.full_name.value.trim(), phone: f.elements.phone.value.trim() })
+      .eq('id', u.id);
+    if (error) { btn.disabled = false; return toast('No se pudo guardar: ' + error.message, false); }
+    closeModal();
+    toast('Usuario actualizado');
+    await cargarTodo();
+  });
+}
 async function borrarUsuario(id) {
   const u = S.users.find(x => x.id === id);
   if (!confirm(`¿Eliminar el perfil de "${u ? u.full_name : 'usuario'}"? Sus comercios se conservarán sin dueño.`)) return;
@@ -799,8 +817,6 @@ function renderComercios() {
         </div>
       </div>
       <div class="acts">
-        <a class="lnk" href="negocio.html?id=${encodeURIComponent(k)}" target="_blank" rel="noopener">Ver</a>
-        <a class="lnk" href="catalogo.html?id=${encodeURIComponent(k)}" target="_blank" rel="noopener">Catálogo</a>
         <button class="btn-sm btn-y" data-act="edit-shop" data-id="${s.id}" type="button">Editar</button>
         <button class="btn-sm btn-red" data-act="del-shop" data-id="${s.id}" type="button">Eliminar</button>
       </div>
@@ -1130,6 +1146,7 @@ async function borrarBanner(id) {
    ACCIONES DELEGADAS
    ========================================================== */
 const ACCIONES = {
+  'edit-user': editarUsuario,
   'del-user': borrarUsuario,
   'edit-shop': editarComercio,
   'del-shop': borrarComercio,
