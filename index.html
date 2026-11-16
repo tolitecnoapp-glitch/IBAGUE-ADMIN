@@ -102,6 +102,7 @@
 <nav class="tabs">
   <button class="tab on" data-tab="resumen" type="button">📊 Resumen</button>
   <button class="tab" data-tab="usuarios" type="button">👥 Usuarios</button>
+  <button class="tab" data-tab="compradores" type="button">🛒 Compradores</button>
   <button class="tab" data-tab="comercios" type="button">🏪 Comercios</button>
   <button class="tab" data-tab="productos" type="button">🛍️ Productos</button>
   <button class="tab" data-tab="banners" type="button">🎬 Banner Multiservicios</button>
@@ -120,6 +121,15 @@
       <h2>Usuarios inscritos</h2>
       <div class="toolbar"><input id="qUsers" type="search" placeholder="Buscar por nombre, correo, teléfono o rol…"></div>
       <div id="listUsers"></div>
+    </div>
+  </section>
+
+  <!-- COMPRADORES -->
+  <section id="tab-compradores" class="tab-sec" hidden>
+    <div class="card">
+      <h2>Compradores</h2>
+      <div class="toolbar"><input id="qCompr" type="search" placeholder="Buscar comprador por nombre, correo o teléfono…"></div>
+      <div id="listCompradores"></div>
     </div>
   </section>
 
@@ -146,7 +156,11 @@
 
   <!-- BANNERS DEL HOME -->
   <section id="tab-banners" class="tab-sec" hidden>
-    <div class="card">
+    <div class="acts" style="margin-bottom:12px">
+      <button class="btn-sm" data-sub="comercios" type="button">BANNER DE COMERCIOS</button>
+      <button class="btn-sm" data-sub="home" type="button">BANNER DEL HOME</button>
+    </div>
+    <div class="card" id="cardAddBanner" hidden>
       <h2>Agregar banner del home</h2>
       <label for="bTitulo">Título / promoción (opcional)</label>
       <input id="bTitulo" type="text" placeholder="Ej: 2x1 todos los martes">
@@ -163,8 +177,9 @@
       <button class="btn-y" id="btnAddBanner" type="button" style="width:100%;margin-top:14px">AGREGAR BANNER</button>
       <p class="hint">Al eliminar un banner también se borra su archivo de Storage para ahorrar espacio.</p>
     </div>
-    <div class="card">
-      <h2>Banners existentes <span id="bCount" style="font-size:12px;color:var(--mut)"></span></h2>
+    <div class="card" id="cardListBanner" hidden>
+      <h2>Banners <span id="bCount" style="font-size:12px;color:var(--mut)"></span></h2>
+      <div class="toolbar" id="barShop" hidden><select id="fBannerShop"></select></div>
       <div id="listBanners"></div>
     </div>
   </section>
@@ -713,7 +728,7 @@ async function cargarTodo() {
   if (errores.length) toast('Algunos datos no cargaron: ' + errores.join(' | '), false);
   renderAll();
 }
-function renderAll() { renderResumen(); renderUsuarios(); renderComercios(); renderProductos(); renderBanners(); }
+function renderAll() { renderResumen(); renderUsuarios(); renderUsuarios(true); renderComercios(); renderProductos(); renderBanners(); }
 $$('btnRefrescar').onclick = () => cargarTodo();
 
 /* ==========================================================
@@ -744,10 +759,10 @@ function renderResumen() {
 /* ==========================================================
    USUARIOS
    ========================================================== */
-function renderUsuarios() {
-  const q = norm($$('qUsers').value);
-  const list = S.users.filter(u => !q || norm([u.full_name, u.email, u.phone, u.role].join(' ')).includes(q));
-  $$('listUsers').innerHTML = list.length ? list.map(u => {
+function renderUsuarios(soloCompradores) {
+  const q = norm($$(soloCompradores === true ? 'qCompr' : 'qUsers').value);
+  const list = S.users.filter(u => (soloCompradores !== true || u.role === 'comprador') && (!q || norm([u.full_name, u.email, u.phone, u.role].join(' ')).includes(q)));
+  $$(soloCompradores === true ? 'listCompradores' : 'listUsers').innerHTML = list.length ? list.map(u => {
     const n = S.shops.filter(s => s.owner_id === u.id).length;
     return `<div class="row">
       <img class="av" src="${esc(u.avatar_url || '')}" loading="lazy" decoding="async" alt="" onerror="this.style.visibility='hidden'">
@@ -761,7 +776,8 @@ function renderUsuarios() {
     </div>`;
   }).join('') : '<p class="empty">No hay usuarios con ese criterio.</p>';
 }
-$$('qUsers').addEventListener('input', renderUsuarios);
+$$('qUsers').addEventListener('input', () => renderUsuarios());
+$$('qCompr').addEventListener('input', () => renderUsuarios(true));
 function editarUsuario(id) {
   const u = S.users.find(x => String(x.id) === String(id));
   if (!u) return;
@@ -771,19 +787,31 @@ function editarUsuario(id) {
     <form id="mForm">
       <label>Nombre completo</label><input name="full_name" required value="${esc(u.full_name)}">
       <label>Teléfono</label><input name="phone" value="${esc(u.phone)}">
+      <label>Foto de perfil</label>
+      <div class="acts"><img class="av" src="${esc(u.avatar_url || '')}" alt="" style="width:64px;height:64px" onerror="this.style.visibility='hidden'"></div>
+      <label>Reemplazar foto</label><input name="foto" type="file" accept="image/*">
+      ${u.avatar_url ? '<label class="check"><input name="quitar_foto" type="checkbox"> Quitar foto</label>' : '<input name="quitar_foto" type="checkbox" hidden>'}
       <button class="btn-y" type="submit" id="mSave" style="width:100%;margin-top:16px">GUARDAR CAMBIOS</button>
     </form>`);
   $$('mForm').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target, btn = $$('mSave');
     btn.disabled = true;
-    const { error } = await sb.from('profiles')
-      .update({ full_name: f.elements.full_name.value.trim(), phone: f.elements.phone.value.trim() })
-      .eq('id', u.id);
-    if (error) { btn.disabled = false; return toast('No se pudo guardar: ' + error.message, false); }
-    closeModal();
-    toast('Usuario actualizado');
-    await cargarTodo();
+    const payload = { full_name: f.elements.full_name.value.trim(), phone: f.elements.phone.value.trim() };
+    const nuevaFoto = f.elements.foto.files[0];
+    try {
+      if (nuevaFoto) payload.avatar_url = await subirArchivo('avatars', await comprimirImagen(nuevaFoto, 400), 'avatar-' + u.id);
+      else if (f.elements.quitar_foto.checked) payload.avatar_url = null;
+      const { error } = await sb.from('profiles').update(payload).eq('id', u.id);
+      if (error) throw error;
+      if (u.avatar_url && payload.avatar_url !== undefined && payload.avatar_url !== u.avatar_url) await borrarArchivo(u.avatar_url);
+      closeModal();
+      toast('Usuario actualizado');
+      await cargarTodo();
+    } catch (err) {
+      btn.disabled = false;
+      toast('No se pudo guardar: ' + (err.message || err), false);
+    }
   });
 }
 async function borrarUsuario(id) {
@@ -1043,10 +1071,31 @@ async function borrarProducto(id) {
 /* ==========================================================
    BANNERS DEL HOME (lo que se ve en el banner de index.html)
    ========================================================== */
+let bView = 'home';
+function fillBannerShops() {
+  const sel = $$('fBannerShop');
+  const actual = sel.value;
+  sel.innerHTML = '<option value="">Todos los comercios</option>' +
+    S.shops.map(s => `<option value="${esc(shopKey(s))}">${esc(s.name)}</option>`).join('');
+  sel.value = actual;
+}
+$$('fBannerShop').addEventListener('change', () => renderBanners());
+function setBView(v) {
+  bView = v;
+  document.querySelectorAll('[data-sub]').forEach(x => x.classList.toggle('btn-y', x.dataset.sub === v));
+  $$('cardListBanner').hidden = false;
+  renderBanners();
+}
+document.querySelectorAll('[data-sub]').forEach(b => b.addEventListener('click', () => setBView(b.dataset.sub)));
 function renderBanners() {
   const home = S.banners.filter(isHome);
   const otros = S.banners.filter(b => !isHome(b));
-  $$('bCount').textContent = `(${home.length} del home · ${otros.length} de comercios)`;
+  $$('cardAddBanner').hidden = bView !== 'home';
+  $$('barShop').hidden = bView !== 'comercios';
+  if (bView === 'comercios') fillBannerShops();
+  const fShop = $$('fBannerShop').value;
+  const base = bView === 'home' ? home : otros.filter(b => !fShop || String(b.business_id) === fShop);
+  $$('bCount').textContent = `(${base.length})`;
   const fila = b => {
     const url = b.video_url || b.image_url || b.media_url || '';
     const esVideo = !!b.video_url || b.media_type === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(url);
@@ -1078,9 +1127,9 @@ function renderBanners() {
       </div>
     </div>`;
   };
-  $$('listBanners').innerHTML = S.banners.length
-    ? S.banners.map(fila).join('')
-    : '<p class="empty">No hay banners. Agrega el primero arriba.</p>';
+  $$('listBanners').innerHTML = base.length
+    ? base.map(fila).join('')
+    : '<p class="empty">No hay banners en esta sección.</p>';
 }
 
 $$('btnAddBanner').addEventListener('click', async () => {
@@ -1167,6 +1216,9 @@ document.addEventListener('click', e => {
    INICIO (sin contraseña: acceso directo del administrador)
    ========================================================== */
 cargarTodo();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
 </script>
 </body>
 </html>
