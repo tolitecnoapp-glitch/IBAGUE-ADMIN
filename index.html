@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · Videos del banner</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f3f1ec;color:#101a30;line-height:1.5}
+  header{background:#fff;padding:14px 16px;box-shadow:0 1px 0 rgba(16,26,48,.06),0 10px 22px -14px rgba(16,26,48,.3);position:sticky;top:0;z-index:10}
+  header h1{margin:0;font-size:18px}
+  header p{margin:4px 0 0;font-size:13px;color:#586273}
+  main{max-width:860px;margin:0 auto;padding:18px 16px 48px}
+  .card{background:#fff;border:1px solid rgba(16,26,48,.06);border-radius:20px;padding:16px;margin-bottom:16px;box-shadow:0 7px 0 #d8d4c8,0 22px 28px -14px rgba(16,26,48,.38)}
+  label{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin:12px 0 6px}
+  input,select{width:100%;padding:11px 12px;border:1px solid rgba(16,26,48,.14);border-radius:12px;font:inherit;font-size:14px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:560px){.row{grid-template-columns:1fr}}
+  button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:11px 14px;font-weight:700;font-size:13px}
+  .primary{background:#F2BA17;color:#101a30;width:100%;margin-top:14px}
+  .ghost{background:#f3f1ec;color:#101a30;border:1px solid rgba(16,26,48,.1)}
+  .danger{background:#d62839;color:#fff}
+  .small{padding:8px 10px;font-size:12px}
+  .msg{font-size:13px;margin:10px 0 0;min-height:18px}
+  .item{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid rgba(16,26,48,.08);border-radius:16px;margin-bottom:10px;background:#fff}
+  .item video{width:150px;height:86px;object-fit:cover;border-radius:10px;background:#101a30;flex:none}
+  .item .info{flex:1;min-width:0}
+  .item h3{margin:0 0 4px;font-size:14px}
+  .item p{margin:0;font-size:12px;color:#586273;word-break:break-all}
+  .item .meta{font-size:11px;color:#586273;margin-top:4px}
+  .item .ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:99px;background:#e8f5e9;color:#1b5e20}
+  .badge.off{background:#fdecea;color:#b71c1c}
+  .empty{text-align:center;color:#586273;font-size:13px;padding:18px}
+  .hint{font-size:12px;color:#586273;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Admin · Videos del banner</h1>
+  <p>Administra los videos que se ven debajo del botón amarillo del clima en la app principal.</p>
+</header>
+<main>
+  <section class="card">
+    <h2 style="margin:0;font-size:16px">Agregar video</h2>
+    <label for="titulo">Título</label>
+    <input id="titulo" type="text" placeholder="Ej: Ibagué desde el aire">
+    <label for="url">URL del video (MP4)</label>
+    <input id="url" type="url" placeholder="https://.../video.mp4">
+    <label for="poster">URL del póster / portada (opcional)</label>
+    <input id="poster" type="url" placeholder="https://.../portada.jpg">
+    <div class="row">
+      <div>
+        <label for="orden">Posición (orden)</label>
+        <input id="orden" type="number" value="0" min="0">
+      </div>
+      <div>
+        <label for="activo">Visible</label>
+        <select id="activo">
+          <option value="true">Sí, visible</option>
+          <option value="false">No, oculto</option>
+        </select>
+      </div>
+    </div>
+    <button class="primary" id="btnAgregar" type="button">AGREGAR VIDEO</button>
+    <p class="msg" id="msg"></p>
+    <p class="hint">Consejo: sube tus videos a Supabase Storage, a YouTube no directo, o a cualquier hosting que entregue MP4 directo. Pega aquí la URL completa del MP4.</p>
+  </section>
+
+  <section class="card">
+    <h2 style="margin:0 0 10px;font-size:16px">Videos actuales <span id="contador" style="font-size:12px;color:#586273"></span></h2>
+    <div id="lista"></div>
+    <p class="msg" id="msg2"></p>
+  </section>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://gwrzgesanxvlxlfevqsc.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3cnpnZXNhbnh2bHhsZmV2cXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ4MDkyOTIsImV4cCI6MjExMDM4NTI5Mn0.kN4A6CtKggNrQ2xYG7Hs40-u-E3kDv4FNMxPOhNPhZs';
+const TABLA = 'banner_videos';
+
+const $ = id => document.getElementById(id);
+const lista = $('lista'), msg = $('msg'), msg2 = $('msg2'), contador = $('contador');
+
+function headers(escribir) {
+  const h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+  if (escribir) { h['Content-Type'] = 'application/json'; h['Prefer'] = 'return=representation'; }
+  return h;
+}
+
+function avisar(el, texto, ok) {
+  el.textContent = texto;
+  el.style.color = ok ? '#1b5e20' : '#b71c1c';
+}
+
+async function cargar() {
+  avisar(msg2, 'Cargando…', true);
+  try {
+    const r = await fetch(SUPABASE_URL + TABLA + '?select=*&order=orden.asc', { headers: headers(false) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const datos = await r.json();
+    pintar(datos);
+    avisar(msg2, '', true);
+  } catch (e) {
+    avisar(msg2, 'No se pudo cargar. Revisa tu conexión y que la tabla exista.', false);
+    lista.innerHTML = '<p class="empty">Sin conexión o tabla no creada.</p>';
+  }
+}
+
+function pintar(datos) {
+  contador.textContent = '(' + datos.length + ')';
+  if (!datos.length) {
+    lista.innerHTML = '<p class="empty">No hay videos. Agrega el primero arriba.</p>';
+    return;
+  }
+  lista.innerHTML = '';
+  datos.forEach(v => {
+    const div = document.createElement('div');
+    div.className = 'item';
+    const video = document.createElement('video');
+    video.src = v.video_url;
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    if (v.poster_url) video.poster = v.poster_url;
+    video.addEventListener('click', () => { video.paused ? video.play().catch(()=>{}) : video.pause(); });
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const h = document.createElement('h3');
+    h.textContent = v.titulo || 'Sin título';
+    const p = document.createElement('p');
+    p.textContent = v.video_url;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML = 'Posición: <b>' + (v.orden ?? 0) + '</b> · ' +
+      (v.activo ? '<span class="badge">VISIBLE</span>' : '<span class="badge off">OCULTO</span>');
+    const ops = document.createElement('div');
+    ops.className = 'ops';
+
+    const bUp = document.createElement('button');
+    bUp.className = 'ghost small'; bUp.type = 'button'; bUp.textContent = '↑ Subir';
+    bUp.addEventListener('click', () => mover(v, -1));
+
+    const bDown = document.createElement('button');
+    bDown.className = 'ghost small'; bDown.type = 'button'; bDown.textContent = '↓ Bajar';
+    bDown.addEventListener('click', () => mover(v, 1));
+
+    const bVis = document.createElement('button');
+    bVis.className = 'ghost small'; bVis.type = 'button';
+    bVis.textContent = v.activo ? 'Ocultar' : 'Mostrar';
+    bVis.addEventListener('click', () => alternar(v));
+
+    const bDel = document.createElement('button');
+    bDel.className = 'danger small'; bDel.type = 'button'; bDel.textContent = 'Eliminar';
+    bDel.addEventListener('click', () => eliminar(v));
+
+    ops.appendChild(bUp); ops.appendChild(bDown); ops.appendChild(bVis); ops.appendChild(bDel);
+    info.appendChild(h); info.appendChild(p); info.appendChild(meta); info.appendChild(ops);
+    div.appendChild(video); div.appendChild(info);
+    lista.appendChild(div);
+  });
+}
+
+async function agregar() {
+  const titulo = $('titulo').value.trim();
+  const url = $('url').value.trim();
+  const poster = $('poster').value.trim();
+  const orden = Number($('orden').value || 0);
+  const activo = $('activo').value === 'true';
+  if (!url) { avisar(msg, 'Pega la URL del video (MP4).', false); return; }
+  avisar(msg, 'Guardando…', true);
+  try {
+    const r = await fetch(SUPABASE_URL + TABLA, {
+      method: 'POST',
+      headers: headers(true),
+      body: JSON.stringify({ titulo: titulo || 'Video destacado', video_url: url, poster_url: poster || null, orden, activo })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    $('titulo').value = ''; $('url').value = ''; $('poster').value = '';
+    avisar(msg, 'Video agregado. Ya se ve en la app.', true);
+    cargar();
+  } catch (e) {
+    avisar(msg, 'No se pudo guardar. Revisa la URL y los permisos (RLS).', false);
+  }
+}
+
+async function eliminar(v) {
+  if (!confirm('¿Eliminar "' + (v.titulo || 'video') + '"?')) return;
+  try {
+    const r = await fetch(SUPABASE_URL + TABLA + '?id=eq.' + encodeURIComponent(v.id), { method: 'DELETE', headers: headers(false) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    cargar();
+  } catch (e) { avisar(msg2, 'No se pudo eliminar.', false); }
+}
+
+async function alternar(v) {
+  try {
+    const r = await fetch(SUPABASE_URL + TABLA + '?id=eq.' + encodeURIComponent(v.id), {
+      method: 'PATCH', headers: headers(true),
+      body: JSON.stringify({ activo: !v.activo })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    cargar();
+  } catch (e) { avisar(msg2, 'No se pudo cambiar visibilidad.', false); }
+}
+
+async function mover(v, dir) {
+  const nuevo = Math.max(0, (v.orden ?? 0) + dir);
+  try {
+    const r = await fetch(SUPABASE_URL + TABLA + '?id=eq.' + encodeURIComponent(v.id), {
+      method: 'PATCH', headers: headers(true),
+      body: JSON.stringify({ orden: nuevo })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    cargar();
+  } catch (e) { avisar(msg2, 'No se pudo mover.', false); }
+}
+
+$('btnAgregar').addEventListener('click', agregar);
+cargar();
+</script>
+</body>
+</html>
