@@ -45,7 +45,10 @@
     <h2 style="margin:0;font-size:16px">Agregar video</h2>
     <label for="titulo">Título</label>
     <input id="titulo" type="text" placeholder="Ej: Ibagué desde el aire">
-    <label for="url">URL del video (MP4)</label>
+    <label for="archivo">Subir video desde el móvil / PC (MP4)</label>
+    <input id="archivo" type="file" accept="video/mp4,video/*">
+    <p class="hint" id="archivoInfo">Si eliges un archivo, se sube a Supabase Storage y no necesitas pegar URL. Puedes poner la cantidad de videos que quieras.</p>
+    <label for="url">O pegar URL del video (MP4)</label>
     <input id="url" type="url" placeholder="https://.../video.mp4">
     <label for="poster">URL del póster / portada (opcional)</label>
     <input id="poster" type="url" placeholder="https://.../portada.jpg">
@@ -64,7 +67,7 @@
     </div>
     <button class="primary" id="btnAgregar" type="button">AGREGAR VIDEO</button>
     <p class="msg" id="msg"></p>
-    <p class="hint">Consejo: sube tus videos a Supabase Storage, a YouTube no directo, o a cualquier hosting que entregue MP4 directo. Pega aquí la URL completa del MP4.</p>
+    <p class="hint">Al eliminar un video también se borra el archivo de Supabase Storage para ahorrar espacio. Si el video era una URL externa, solo se borra la fila.</p>
   </section>
 
   <section class="card">
@@ -78,6 +81,8 @@
 const SUPABASE_URL = 'https://gwrzgesanxvlxlfevqsc.supabase.co/rest/v1/';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3cnpnZXNhbnh2bHhsZmV2cXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ4MDkyOTIsImV4cCI6MjExMDM4NTI5Mn0.kN4A6CtKggNrQ2xYG7Hs40-u-E3kDv4FNMxPOhNPhZs';
 const TABLA = 'banner_videos';
+const BUCKET = 'banner-videos';
+const STORAGE_BASE = 'https://gwrzgesanxvlxlfevqsc.supabase.co/storage/v1/';
 
 const $ = id => document.getElementById(id);
 const lista = $('lista'), msg = $('msg'), msg2 = $('msg2'), contador = $('contador');
@@ -163,34 +168,71 @@ function pintar(datos) {
   });
 }
 
+function nombreArchivo(file) {
+  const ext = (file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+  return Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+}
+
+async function subirArchivo(file) {
+  const nombre = nombreArchivo(file);
+  const r = await fetch(STORAGE_BASE + 'object/' + BUCKET + '/' + nombre, {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type || 'video/mp4', 'x-upsert': 'true' },
+    body: file
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return STORAGE_BASE + 'object/public/' + BUCKET + '/' + nombre;
+}
+
+function rutaStorage(url) {
+  const marca = '/object/public/' + BUCKET + '/';
+  const i = (url || '').indexOf(marca);
+  if (i === -1) return null;
+  return decodeURIComponent(url.slice(i + marca.length).split('?')[0]);
+}
+
+async function borrarArchivoStorage(url) {
+  const ruta = rutaStorage(url);
+  if (!ruta) return;
+  try {
+    await fetch(STORAGE_BASE + 'object/' + BUCKET + '/' + ruta, {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+  } catch (e) {}
+}
+
 async function agregar() {
   const titulo = $('titulo').value.trim();
-  const url = $('url').value.trim();
+  let url = $('url').value.trim();
   const poster = $('poster').value.trim();
   const orden = Number($('orden').value || 0);
   const activo = $('activo').value === 'true';
-  if (!url) { avisar(msg, 'Pega la URL del video (MP4).', false); return; }
-  avisar(msg, 'Guardando…', true);
+  const archivo = $('archivo').files && $('archivo').files[0];
+  if (!url && !archivo) { avisar(msg, 'Elige un archivo del móvil o pega la URL del video (MP4).', false); return; }
+  avisar(msg, archivo ? 'Subiendo video a Supabase…' : 'Guardando…', true);
   try {
+    if (archivo) url = await subirArchivo(archivo);
     const r = await fetch(SUPABASE_URL + TABLA, {
       method: 'POST',
       headers: headers(true),
       body: JSON.stringify({ titulo: titulo || 'Video destacado', video_url: url, poster_url: poster || null, orden, activo })
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    $('titulo').value = ''; $('url').value = ''; $('poster').value = '';
+    $('titulo').value = ''; $('url').value = ''; $('poster').value = ''; $('archivo').value = '';
     avisar(msg, 'Video agregado. Ya se ve en la app.', true);
     cargar();
   } catch (e) {
-    avisar(msg, 'No se pudo guardar. Revisa la URL y los permisos (RLS).', false);
+    avisar(msg, 'No se pudo guardar. Revisa el archivo/URL y los permisos (RLS + Storage).', false);
   }
 }
 
 async function eliminar(v) {
-  if (!confirm('¿Eliminar "' + (v.titulo || 'video') + '"?')) return;
+  if (!confirm('¿Eliminar "' + (v.titulo || 'video') + '"? También se borrará el archivo de Supabase para ahorrar espacio.')) return;
   try {
     const r = await fetch(SUPABASE_URL + TABLA + '?id=eq.' + encodeURIComponent(v.id), { method: 'DELETE', headers: headers(false) });
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    await borrarArchivoStorage(v.video_url);
     cargar();
   } catch (e) { avisar(msg2, 'No se pudo eliminar.', false); }
 }
