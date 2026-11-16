@@ -28,7 +28,12 @@
   .item h3{margin:0 0 4px;font-size:14px}
   .item p{margin:0;font-size:12px;color:#586273;word-break:break-all}
   .item .meta{font-size:11px;color:#586273;margin-top:4px}
-  .item .ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .item .ops{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .ops-row{display:flex;gap:6px}
+  .ops-row button{flex:1}
+  .pos{display:flex;align-items:center;gap:6px;flex:1}
+  .pos label{margin:0;font-size:11px;white-space:nowrap}
+  .pos input{width:64px;padding:8px 10px}
   .badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:99px;background:#e8f5e9;color:#1b5e20}
   .badge.off{background:#fdecea;color:#b71c1c}
   .empty{text-align:center;color:#586273;font-size:13px;padding:18px}
@@ -47,7 +52,6 @@
     <input id="titulo" type="text" placeholder="Ej: Ibagué desde el aire">
     <label for="archivo">Subir video desde el móvil / PC (MP4)</label>
     <input id="archivo" type="file" accept="video/mp4,video/*">
-    <p class="hint" id="archivoInfo">Si eliges un archivo, se sube a Supabase Storage y no necesitas pegar URL. Puedes poner la cantidad de videos que quieras.</p>
     <label for="url">O pegar URL del video (MP4)</label>
     <input id="url" type="url" placeholder="https://.../video.mp4">
     <label for="poster">URL del póster / portada (opcional)</label>
@@ -135,34 +139,37 @@ function pintar(datos) {
     info.className = 'info';
     const h = document.createElement('h3');
     h.textContent = v.titulo || 'Sin título';
-    const p = document.createElement('p');
-    p.textContent = v.video_url;
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.innerHTML = 'Posición: <b>' + (v.orden ?? 0) + '</b> · ' +
-      (v.activo ? '<span class="badge">VISIBLE</span>' : '<span class="badge off">OCULTO</span>');
     const ops = document.createElement('div');
     ops.className = 'ops';
 
-    const bUp = document.createElement('button');
-    bUp.className = 'ghost small'; bUp.type = 'button'; bUp.textContent = '↑ Subir';
-    bUp.addEventListener('click', () => mover(v, -1));
-
-    const bDown = document.createElement('button');
-    bDown.className = 'ghost small'; bDown.type = 'button'; bDown.textContent = '↓ Bajar';
-    bDown.addEventListener('click', () => mover(v, 1));
-
+    const fila1 = document.createElement('div');
+    fila1.className = 'ops-row';
     const bVis = document.createElement('button');
     bVis.className = 'ghost small'; bVis.type = 'button';
     bVis.textContent = v.activo ? 'Ocultar' : 'Mostrar';
     bVis.addEventListener('click', () => alternar(v));
-
     const bDel = document.createElement('button');
     bDel.className = 'danger small'; bDel.type = 'button'; bDel.textContent = 'Eliminar';
     bDel.addEventListener('click', () => eliminar(v));
+    fila1.appendChild(bVis); fila1.appendChild(bDel);
 
-    ops.appendChild(bUp); ops.appendChild(bDown); ops.appendChild(bVis); ops.appendChild(bDel);
-    info.appendChild(h); info.appendChild(p); info.appendChild(meta); info.appendChild(ops);
+    const fila2 = document.createElement('div');
+    fila2.className = 'ops-row';
+    const pos = document.createElement('div');
+    pos.className = 'pos';
+    const lab = document.createElement('label');
+    lab.textContent = 'Posición';
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.min = '0'; inp.value = (v.orden ?? 0);
+    inp.setAttribute('aria-label', 'Posición');
+    pos.appendChild(lab); pos.appendChild(inp);
+    const bGuardar = document.createElement('button');
+    bGuardar.className = 'ghost small'; bGuardar.type = 'button'; bGuardar.textContent = 'Guardar';
+    bGuardar.addEventListener('click', () => guardarPosicion(v, inp.value));
+    fila2.appendChild(pos); fila2.appendChild(bGuardar);
+
+    ops.appendChild(fila1); ops.appendChild(fila2);
+    info.appendChild(h); info.appendChild(ops);
     div.appendChild(video); div.appendChild(info);
     lista.appendChild(div);
   });
@@ -210,7 +217,7 @@ async function agregar() {
   const activo = $('activo').value === 'true';
   const archivo = $('archivo').files && $('archivo').files[0];
   if (!url && !archivo) { avisar(msg, 'Elige un archivo del móvil o pega la URL del video (MP4).', false); return; }
-  avisar(msg, archivo ? 'Subiendo video a Supabase…' : 'Guardando…', true);
+  avisar(msg, archivo ? 'Subiendo video…' : 'Guardando…', true);
   try {
     if (archivo) url = await subirArchivo(archivo);
     const r = await fetch(SUPABASE_URL + TABLA, {
@@ -248,8 +255,8 @@ async function alternar(v) {
   } catch (e) { avisar(msg2, 'No se pudo cambiar visibilidad.', false); }
 }
 
-async function mover(v, dir) {
-  const nuevo = Math.max(0, (v.orden ?? 0) + dir);
+async function guardarPosicion(v, valor) {
+  const nuevo = Math.max(0, Number(valor || 0));
   try {
     const r = await fetch(SUPABASE_URL + TABLA + '?id=eq.' + encodeURIComponent(v.id), {
       method: 'PATCH', headers: headers(true),
@@ -257,7 +264,7 @@ async function mover(v, dir) {
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     cargar();
-  } catch (e) { avisar(msg2, 'No se pudo mover.', false); }
+  } catch (e) { avisar(msg2, 'No se pudo guardar la posición.', false); }
 }
 
 $('btnAgregar').addEventListener('click', agregar);
