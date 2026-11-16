@@ -1,17 +1,15 @@
 {
-  "name": "Admin · Videos del banner",
-  "short_name": "Admin",
-  "description": "Administra los videos del banner de la app Ibagué: agrega, elimina y ordena los videos destacados.",
-  "lang": "es",
-  "dir": "ltr",
-  "start_url": ".",
-  "scope": ".",
-  "id": ".",
+  "name": "Admin · Ibagué Multiservicios",
+  "short_name": "Admin Ibagué",
+  "description": "Panel de administración de la app Ibagué Multiservicios.",
+  "id": "https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/adminservicios.html",
+  "start_url": "./adminservicios.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
-  "categories": ["utilities"],
+  "background_color": "#f3f1ec",
+  "theme_color": "#F2BA17",
+  "lang": "es-CO",
   "icons": [
     {
       "src": "icon-192.png",
@@ -24,12 +22,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
     },
     {
       "src": "icon-512.png",
