@@ -16,6 +16,17 @@
 <meta property="og:site_name" content="Admin Ibagué Multiservicios">
 <meta property="og:title" content="Admin · Ibagué Multiservicios">
 <meta property="og:description" content="Panel de administración de la app Ibagué Multiservicios.">
+<meta property="og:url" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/adminservicios.html">
+<meta property="og:image" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/icon-512.png">
+<meta property="og:image:secure_url" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/icon-512.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Admin Ibagué Multiservicios">
+<meta name="twitter:title" content="Admin · Ibagué Multiservicios">
+<meta name="twitter:description" content="Panel de administración de la app Ibagué Multiservicios.">
+<meta name="twitter:image" content="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/icon-512.png">
+<link rel="canonical" href="https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/adminservicios.html">
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://gkiplohcksvjeycgxvxp.supabase.co" crossorigin>
 <link rel="dns-prefetch" href="https://gkiplohcksvjeycgxvxp.supabase.co">
@@ -542,6 +553,15 @@ if ('serviceWorker' in navigator) {
 </div>
 <div class="toast" id="toast" hidden></div>
 
+<!-- Visor de imágenes y videos -->
+<div class="modal" id="imgViewer" hidden style="z-index:160">
+  <div class="modal-box" style="max-width:900px;background:#0b1220;padding:14px">
+    <button class="x" id="ivX" type="button" aria-label="Cerrar">×</button>
+    <img id="ivImg" alt="" style="width:100%;max-height:82vh;object-fit:contain;border-radius:12px;display:block">
+    <video id="ivVid" controls playsinline style="width:100%;max-height:82vh;border-radius:12px;display:none;background:#000"></video>
+  </div>
+</div>
+
 <!-- Confirmación propia (sin dominio) -->
 <div class="modal" id="confirmBox" hidden>
   <div class="modal-box" style="max-width:380px;text-align:center">
@@ -935,7 +955,7 @@ function renderProductos() {
     const st = p.stock === null || p.stock === undefined ? 'Sin control' : p.stock + ' disp.';
     const img = imgsDe(p)[0] || '';
     return `<div class="row">
-      <img class="thumb" src="${esc(img)}" loading="lazy" decoding="async" alt="" onerror="this.style.visibility='hidden'">
+      <img class="thumb" src="${esc(img)}" loading="lazy" decoding="async" alt="" data-act="ver-prod" data-id="${p.id}" style="cursor:zoom-in" onerror="this.style.visibility='hidden'">
       <div class="grow">
         <b>${esc(p.name)}</b>
         <small>${esc(sh ? sh.name : 'Comercio desconocido')} · ${esc(p.category || 'General')}</small>
@@ -951,11 +971,58 @@ function renderProductos() {
 $$('qProds').addEventListener('input', renderProductos);
 $$('fShop').addEventListener('change', renderProductos);
 
+function srcImg(it) { return typeof it === 'string' ? it : it.preview; }
+let cambiarIdx = -1;
 function renderImgsEdit() {
-  $$('pImgs').innerHTML = EDIT_IMGS.map((u, i) => `
-    <div class="it"><img src="${esc(u)}" alt="" loading="lazy" decoding="async">
-      <button type="button" data-act="quitar-img" data-id="${i}" aria-label="Quitar">✕</button></div>`).join('') || '<p class="hint">Sin fotos.</p>';
+  const n = EDIT_IMGS.length;
+  $$('pImgs').innerHTML = EDIT_IMGS.map((it, i) => `
+    <div class="pimg" style="position:relative;width:112px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff">
+      <img src="${esc(srcImg(it))}" alt="" loading="lazy" decoding="async" data-img-act="ver" data-i="${i}" style="display:block;width:100%;height:76px;object-fit:cover;cursor:zoom-in">
+      <div style="display:flex;gap:3px;justify-content:center;padding:4px">
+        <button type="button" data-img-act="izq" data-i="${i}" style="padding:3px 6px;font-size:11px" ${i === 0 ? 'disabled' : ''}>◀</button>
+        <button type="button" data-img-act="cambiar" data-i="${i}" style="padding:3px 6px;font-size:11px">⟳</button>
+        <button type="button" data-img-act="der" data-i="${i}" style="padding:3px 6px;font-size:11px" ${i === n - 1 ? 'disabled' : ''}>▶</button>
+        <button type="button" data-img-act="quitar" data-i="${i}" style="padding:3px 6px;font-size:11px;background:#d62839;color:#fff;border:0">✕</button>
+      </div>
+      ${i === 0 ? '<span style="position:absolute;top:4px;left:4px;font-size:9px;font-weight:800;background:#F2BA17;padding:2px 6px;border-radius:99px">PRINCIPAL</span>' : ''}
+    </div>`).join('') || '<p class="hint">Sin fotos.</p>';
 }
+function moverImg(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= EDIT_IMGS.length) return;
+  [EDIT_IMGS[i], EDIT_IMGS[j]] = [EDIT_IMGS[j], EDIT_IMGS[i]];
+  renderImgsEdit();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-img-act]');
+  if (!b) return;
+  const i = Number(b.dataset.i), a = b.dataset.imgAct;
+  if (a === 'ver') return verMediaUrl(srcImg(EDIT_IMGS[i]), false);
+  if (a === 'izq') return moverImg(i, -1);
+  if (a === 'der') return moverImg(i, 1);
+  if (a === 'quitar') { EDIT_IMGS.splice(i, 1); return renderImgsEdit(); }
+  if (a === 'cambiar') { cambiarIdx = i; $$('pFileSlot').click(); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'pFileSlot') {
+    const f = t.files[0];
+    t.value = '';
+    if (!f || cambiarIdx < 0) return;
+    EDIT_IMGS[cambiarIdx] = { file: f, preview: URL.createObjectURL(f) };
+    cambiarIdx = -1;
+    renderImgsEdit();
+    return;
+  }
+  if (t.name === 'nuevas' && t.form && t.form.id === 'mForm') {
+    const files = Array.from(t.files || []);
+    t.value = '';
+    const libre = 4 - EDIT_IMGS.length;
+    if (files.length > libre) toast('Solo puedes tener 4 fotos por producto', false);
+    files.slice(0, Math.max(0, libre)).forEach(f => EDIT_IMGS.push({ file: f, preview: URL.createObjectURL(f) }));
+    renderImgsEdit();
+  }
+});
 
 function editarProducto(id) {
   const p = S.products.find(x => String(x.id) === String(id));
@@ -979,6 +1046,7 @@ function editarProducto(id) {
       <label>Fotos (máximo 4; la primera es la principal)</label>
       <div class="imgs" id="pImgs"></div>
       <label>Agregar fotos</label><input name="nuevas" type="file" accept="image/*" multiple>
+      <input id="pFileSlot" type="file" accept="image/*" hidden>
       <button class="btn-y" type="submit" id="mSave" style="width:100%;margin-top:16px">GUARDAR PRODUCTO</button>
     </form>`);
   renderImgsEdit();
@@ -990,13 +1058,11 @@ async function guardarProducto(e, p) {
   const f = e.target, btn = $$('mSave');
   btn.disabled = true; btn.textContent = 'Guardando…';
   try {
-    const nuevas = Array.from(f.elements.nuevas.files || []);
-    const espacio = 4 - EDIT_IMGS.length;
-    const subidas = [];
-    for (const file of nuevas.slice(0, Math.max(0, espacio))) {
-      subidas.push(await subirArchivo('logos', await comprimirImagen(file, 960), 'prod-' + p.id));
+    const finales = [];
+    for (const it of EDIT_IMGS) {
+      if (typeof it === 'string') finales.push(it);
+      else finales.push(await subirArchivo('logos', await comprimirImagen(it.file, 960), 'prod-' + p.id));
     }
-    const finales = EDIT_IMGS.concat(subidas).slice(0, 4);
     const quitadas = imgsDe(p).filter(u => !finales.includes(u));
     const v = n => f.elements[n].value.trim();
     const payload = {
@@ -1060,8 +1126,8 @@ function renderBanners() {
     const url = b.video_url || b.image_url || b.media_url || '';
     const esVideo = !!b.video_url || b.media_type === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(url);
     const media = esVideo
-      ? `<video class="vid" src="${esc(url)}" muted loop playsinline preload="metadata"></video>`
-      : `<img class="vid" src="${esc(url)}" loading="lazy" decoding="async" alt="">`;
+      ? `<video class="vid" src="${esc(url)}" muted loop playsinline preload="metadata" data-act="ver-media" data-id="${b.id}" style="cursor:pointer"></video>`
+      : `<img class="vid" src="${esc(url)}" loading="lazy" decoding="async" alt="" data-act="ver-media" data-id="${b.id}" style="cursor:pointer">`;
     const estado = isHome(b)
       ? (isHidden(b) ? '<span class="tag off">Oculto</span>' : '<span class="tag ok">Visible en el home</span>')
       : '<span class="tag y">Banner de comercio</span>';
@@ -1083,6 +1149,7 @@ function renderBanners() {
       </div>
       <div class="acts">
         ${boton}
+        ${!isHome(b) ? `<button class="btn-sm btn-y" data-act="edit-banner" data-id="${b.id}" type="button">Editar</button>` : ''}
         <button class="btn-sm btn-red" data-act="del-banner" data-id="${b.id}" type="button">Eliminar</button>
       </div>
     </div>`;
@@ -1154,6 +1221,98 @@ async function borrarBanner(id) {
 /* ==========================================================
    ACCIONES DELEGADAS
    ========================================================== */
+/* ==========================================================
+   VISOR, EDICIÓN DE BANNERS DE COMERCIOS Y FOTOS DE PRODUCTO
+   ========================================================== */
+function verMediaUrl(url, esVideo) {
+  const v = $$('ivVid'), i = $$('ivImg');
+  if (!url) return;
+  if (esVideo) {
+    i.style.display = 'none';
+    v.style.display = 'block';
+    v.src = url;
+    v.play().catch(() => {});
+  } else {
+    v.pause();
+    v.removeAttribute('src');
+    v.style.display = 'none';
+    i.style.display = 'block';
+    i.src = url;
+  }
+  $$('imgViewer').hidden = false;
+}
+function cerrarViewer() {
+  const v = $$('ivVid');
+  v.pause();
+  v.removeAttribute('src');
+  $$('imgViewer').hidden = true;
+}
+$$('ivX').onclick = cerrarViewer;
+$$('imgViewer').addEventListener('click', e => { if (e.target === $$('imgViewer')) cerrarViewer(); });
+
+function verMedia(id) {
+  const b = S.banners.find(x => String(x.id) === String(id));
+  if (!b) return;
+  const url = b.video_url || b.image_url || b.media_url;
+  const esVideo = !!b.video_url || b.media_type === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(url || '');
+  verMediaUrl(url, esVideo);
+}
+function verProdImg(id) {
+  const p = S.products.find(x => String(x.id) === String(id));
+  const u = p && imgsDe(p)[0];
+  if (!u) return toast('Este producto no tiene foto', false);
+  verMediaUrl(u, false);
+}
+
+function editarBanner(id) {
+  const b = S.banners.find(x => String(x.id) === String(id));
+  if (!b) return;
+  const url = b.video_url || b.image_url || b.media_url || '';
+  const esVideo = !!b.video_url || b.media_type === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(url);
+  const sh = shopByBid(b.business_id);
+  openModal(`
+    <h2>Editar banner de comercio</h2>
+    <p class="hint" style="margin-top:0">${esc(sh ? sh.name : '')}</p>
+    <form id="mForm">
+      <label>Título / promoción</label><input name="title" value="${esc(b.title)}">
+      <label>Archivo actual</label>
+      ${esVideo
+        ? `<video src="${esc(url)}" muted controls preload="metadata" style="width:100%;max-height:220px;border-radius:12px;background:#000"></video>`
+        : `<img src="${esc(url)}" alt="" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px;background:#f3f1ec">`}
+      <label>Reemplazar imagen o video (máx. 25 MB)</label>
+      <input name="archivo" type="file" accept="image/*,video/*">
+      <button class="btn-y" type="submit" id="mSave" style="width:100%;margin-top:16px">GUARDAR CAMBIOS</button>
+    </form>`);
+  $$('mForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, btn = $$('mSave');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      const payload = { title: f.elements.title.value.trim() || null };
+      const file = f.elements.archivo.files[0];
+      if (file) {
+        const tipo = file.type.startsWith('video/') ? 'video' : 'image';
+        if (tipo === 'video' && file.size > 25 * MB) throw new Error('El video supera 25 MB');
+        const blob = tipo === 'image' ? await comprimirImagen(file, 1280) : file;
+        const nueva = await subirArchivo(tipo === 'video' ? 'videos' : 'logos', blob, 'banner');
+        payload.media_url = nueva;
+        payload.media_type = tipo;
+        payload.video_url = tipo === 'video' ? nueva : null;
+        payload.image_url = tipo === 'image' ? nueva : null;
+      }
+      const { error } = await sb.from('shop_banners').update(payload).eq('id', b.id);
+      if (error) throw error;
+      if (payload.media_url && url && url !== payload.media_url) await borrarArchivo(url);
+      closeModal();
+      toast('Banner actualizado');
+      await cargarTodo();
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'GUARDAR CAMBIOS';
+      toast('Error: ' + (err.message || err), false);
+    }
+  });
+}
+
 const ACCIONES = {
   'edit-user': editarUsuario,
   'del-user': borrarUsuario,
@@ -1164,6 +1323,9 @@ const ACCIONES = {
   'toggle-banner': alternarBanner,
   'save-order': guardarOrdenBanner,
   'del-banner': borrarBanner,
+  'edit-banner': editarBanner,
+  'ver-media': verMedia,
+  'ver-prod': verProdImg,
   'quitar-img': i => { EDIT_IMGS.splice(Number(i), 1); renderImgsEdit(); }
 };
 document.addEventListener('click', e => {
