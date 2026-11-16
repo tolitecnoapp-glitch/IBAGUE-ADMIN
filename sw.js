@@ -1,12 +1,7 @@
-/* Admin · Videos del banner — Service Worker
-   Repo: https://tolitecnoapp-glitch.github.io/IBAGUE-ADMIN/
-   Estrategia: cache-first para la app shell, red primero para el resto.
-*/
-const CACHE = 'ibague-admin-v1';
+const CACHE_NAME = 'ibague-admin-v1';
 const APP_SHELL = [
   './',
-  './index.html',
-  './admin.html',
+  './adminservicios.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -14,51 +9,40 @@ const APP_SHELL = [
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE)
+    caches.open(CACHE_NAME)
       .then(cache => cache.addAll(APP_SHELL))
       .then(() => self.skipWaiting())
-      .catch(() => {})
   );
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
+/* Solo se guardan en caché los archivos propios del repositorio.
+   Las peticiones a Supabase siempre van directo a la red, para ver datos al día. */
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req)
-        .then(res => {
-          const copia = res.clone();
-          caches.open(CACHE).then(cache => cache.put(req, copia)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
-    );
-    return;
-  }
-
   event.respondWith(
-    caches.match(req).then(hit => {
-      if (hit) return hit;
-      return fetch(req)
+    caches.match(req).then(cached => {
+      const red = fetch(req)
         .then(res => {
-          const copia = res.clone();
-          caches.open(CACHE).then(cache => cache.put(req, copia)).catch(() => {});
+          if (res && res.ok) {
+            const copia = res.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(req, copia));
+          }
           return res;
         })
-        .catch(() => hit);
+        .catch(() => cached);
+      return cached || red;
     })
   );
 });
